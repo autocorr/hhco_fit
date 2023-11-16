@@ -35,7 +35,7 @@ const MAD_TO_STD = 1.4826
 const DATADIR = expanduser("~/lustre/temp/moldata")
 
 
-SYS_VELOS = Dict(
+const SYS_VELOS = Dict(
     "G0.068-0.075"   => 45.0,  # km/s
     "G0.106-0.082"   => 50.0,
     "G0.145-0.086"   => 55.0,
@@ -56,6 +56,11 @@ SYS_VELOS = Dict(
     "G359.865+0.022" => 55.0,
     "G359.889-0.093" => 10.0,
 )
+
+const BAD_SOURCES = [
+    "G1.683-0.089a",
+    "G1.683-0.089b",
+]
 
 
 mad(x) = begin μ = median(x); median(abs.(x .- μ)) end
@@ -486,11 +491,16 @@ function plot_all_integrated_fields(data_dir="data/mina_data")
 end
 
 
-function run_all_mina_fits(data_dir="data/mina_data"; niter=50_000)
+function run_all_mina_fits(data_dir="data/mina_data"; niter=50_000, overwrite=false)
     for path in glob(joinpath(data_dir, "*.fits"))
         field, spectra_by_source = read_field_spectra(path)
         for (source, spectra) in spectra_by_source
-            if isnan(spectra[1].vsys)
+            if source in BAD_SOURCES
+                continue
+            end
+            csv_filen = "$(source)_chain.csv"
+            if ~overwrite && isfile(csv_filen)
+                @info "$(source) files exist, continuing."
                 continue
             end
             @info "Fitting source: $source"
@@ -498,9 +508,9 @@ function run_all_mina_fits(data_dir="data/mina_data"; niter=50_000)
             chain, _ = run_mcmc(logprob; niter=niter)
             plot_pycorner(chain, outname="$(source)_corner_py")
             med_params = median(chain, dims=1)
-            xlim = (spectra[1].vsys - 30, spectra[1].vsys + 30)
+            xlim = (spectra[1].vsys - 50, spectra[1].vsys + 50)
             plot_spectra(spectra; params=med_params, xlim=xlim, outname="$(source)")
-            CSV.write("$(source)_chain.csv", astable(chain))
+            CSV.write(csv_filen, astable(chain))
         end
     end
 end
