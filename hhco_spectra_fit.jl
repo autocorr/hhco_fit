@@ -36,8 +36,8 @@ const DATADIR = expanduser("~/lustre/temp/moldata")
 
 
 SYS_VELOS = Dict(
-    "G0.068-0.075"   => 50.0,  # km/s
-    "G0.106-0.082"   => 55.0,
+    "G0.068-0.075"   => 45.0,  # km/s
+    "G0.106-0.082"   => 50.0,
     "G0.145-0.086"   => 55.0,
     "G0.212-0.001"   => 45.0,
     "G0.316-0.201"   => 20.0,
@@ -47,14 +47,14 @@ SYS_VELOS = Dict(
     "G0.393-0.034"   => 90.0,
     "G0.412+0.052"   => 20.0,
     "G0.483+0.010"   => 25.0,
-    "G0.489+0.010"   => 25.0,
+    "G0.489+0.010"   => 30.0,
     "G1.651-0.050"   => 55.0,
-    "G1.683-0.089"   => NaN,
-    "G359.137+0.031" => 0.0,
+    "G1.683-0.089"   => 55.0,
+    "G359.137+0.031" =>  0.0,
     "G359.615-0.243" => 20.0,
-    "G359.734+0.002" => NaN,
+    "G359.734+0.002" => 55.0,
     "G359.865+0.022" => 55.0,
-    "G359.889-0.093" => NaN,
+    "G359.889-0.093" => 10.0,
 )
 
 
@@ -113,6 +113,11 @@ function read_field_spectra(path)
             v = convert.(Float64, read(table, "$(source)_velocity_h2co_$(freq)GHz"))
             I = convert.(Float64, read(table, "$(source)_intensity_h2co_$(freq)GHz"))
             T = jy_to_k(freq, bmaj, bmin) .* I
+            # NOTE G359.889-0.093 is actually in m/s, so correct the units when
+            # values of 10,000 km/s are found.
+            if maximum(v) > 1e4
+                v ./= 1e3  # m/s to km/s
+            end
             spec = Spec(v, T; vsys=vsys)
             push!(source_spectra, spec)
         end
@@ -216,14 +221,14 @@ function get_logprob_interp(dataspec; N=20)
         #   log_N :    13.0    15.0             # log(cm-2)
         #       T :    10.0   300.0             # K
         #       σ :     0.5     8.0             # km/s
-        #       v :   -20.0    20.0             # km/s
+        #       v :   -30.0    30.0             # km/s
         #     f_b :     0.5     1.0             # unitless
         lnL = zero(log_n)                       # log-likelihood
         lnL += logpdf(  4.5  +   3.0 * Beta(2.0, 3.5), log_n)
         lnL += logpdf( 13.0  +   1.5 * Beta(4.0, 4.0), log_N)
         lnL += logpdf( 10.0  + 290.0 * Beta(1.6, 2.5), T)
         lnL += logpdf(  0.5  +   8.0 * Beta(2.0, 2.0), σ)
-        lnL += logpdf(-20.0  +  40.0 * Beta(5.0, 5.0), v)
+        lnL += logpdf(-30.0  +  60.0 * Beta(5.0, 5.0), v)
         lnL += logpdf(  0.5  +   0.5 * Uniform(), f_b)
         if lnL == -Inf
             return lnL
@@ -263,14 +268,14 @@ function get_logprob_direct(dataspec)
         #   log_N :    13.0    15.0             # log(cm-2)
         #       T :    10.0   300.0             # K
         #       σ :     0.5     8.0             # km/s
-        #       v :   -20.0    20.0             # km/s
+        #       v :   -30.0    30.0             # km/s
         #     f_b :     0.5     1.0             # unitless
         lnL = zero(log_n)                       # log-likelihood
         lnL += logpdf(  4.5  +   3.0 * Beta(2.0, 3.5), log_n)
         lnL += logpdf( 13.0  +   1.5 * Beta(4.0, 4.0), log_N)
         lnL += logpdf( 10.0  + 290.0 * Beta(1.6, 2.5), T)
         lnL += logpdf(  0.5  +   8.0 * Beta(2.0, 2.0), σ)
-        lnL += logpdf(-20.0  +  40.0 * Beta(5.0, 5.0), v)
+        lnL += logpdf(-20.0  +  60.0 * Beta(5.0, 5.0), v)
         lnL += logpdf(  0.5  +   0.5 * Uniform(), f_b)
         if lnL == -Inf
             return lnL
@@ -376,7 +381,7 @@ function plot_spectra(spectra; params=nothing, xlim=(-50, 150),
                   ylabel=ylabel, xlabelsize=12, ylabelsize=12,
                   xticklabelsize=10, yticklabelsize=10)
         hlines!([0], color=:gray, linestyle=:dash, linewidth=0.7)
-        vlines!([spec.vsys-20, spec.vsys+20], color=:gray, linestyle=:dot, linewidth=0.7)
+        vlines!([spec.vsys-30, spec.vsys+30], color=:gray, linestyle=:dot, linewidth=0.7)
         band!(spec.v, zero(spec.I), spec.I, color=(:orange, 0.25))
         stairs!(spec.v, spec.I, color=:orangered, step=:center)
         label_x = xlim[1] + 0.05xlim[2]
